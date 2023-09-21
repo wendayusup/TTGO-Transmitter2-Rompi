@@ -145,7 +145,7 @@ void gpsdata()
         display.println("---------------------");
         display.println(String() + "Searching GPS...");
         display.println("");
-        display.println(String() + "RSSI: " + LoRa.packetRssi() + "  Batt : " + batt + "%");
+        display.println(String() + "RSSI: " + LoRa.packetRssi() + "   Batt:" + batt + "%");
         display.println(String() + "Press RESET button ifit has still no GPS.");
         display.display();
       }
@@ -227,11 +227,13 @@ void setup()
   // Starting GPS
   neogps.begin(9600, SERIAL_8N1, RX, TX);
   // Starting OLED
-  display.begin();
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   // Starting Wire
   Wire.begin();
   // Starting LoRa
   startLoRa();
+  // Starting Battery
+  axp.begin(Wire, AXP192_SLAVE_ADDRESS);
 
   //-----------------------------------PINMODE
   pinMode(buttonreset, INPUT_PULLUP);
