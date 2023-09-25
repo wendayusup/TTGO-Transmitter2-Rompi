@@ -1,20 +1,12 @@
-
-// Program T-Beam Transmitter GPS & LoRa
-// Version 1.1
+// Version 1.0
 // Wenda Yusup
 // PT. Makerindo Prima Solusi
 // 26/08/2023
-// COM16
+//COM16
 
-/* Jika ingin ganti Device, tinggal mengganti ID dan Local Address
-   Contoh : Rompi 1 
-           ID : MKRRKP011222
-           LocalAddress : 1*/
+//-------------------------------------------------TRANSMITTER RMP02------------------------------------------------
 
-//------------------------------------------------------------------------TRANSMITTER RMP02------------------------------------------------//
-
-
-// -----------------------------------------------------------------------LIBRARY SOURCE
+// -----------------------------------------------------------------------Library 
 #include <Arduino.h>
 #include <SPI.h>
 #include <LoRa.h>
@@ -24,49 +16,44 @@
 #include <axp20x.h>
 #include <TinyGPS++.h>
 
-// -----------------------------------------------------------------------DEFINITION FOR GPS
+// -----------------------------------------------------------------------Definition UART GPS
 #define RX 34
 #define TX 12
 HardwareSerial neogps(1);
 TinyGPSPlus gps;
 
-// -----------------------------------------------------------------------DEFINITION FOR LORA (915MHZ)
+// -----------------------------------------------------------------------Definition SPI & LoRa
 #define SCK 5
 #define MISO 19
 #define MOSI 27
 #define SS 18
 #define RST 14
 #define DIO0 26
+#define BAND 915E6
 
-
-// -----------------------------------------------------------------------DEFINITION BUTTON
-#define buttonreset 14
-#define buttonreroute 25
-
-
-
-//-----------------------------------------------------------------------------SETUP---------------------------------
-
-//---------------------------INITIALIZATION VARIABLE
+//---------------------------Insialisasi variabel untuk kirim dan terima pesan pada komunikasi LoRa
 String outgoing;
 String ID = "MKRRMP021222";
 String PayLoad;
-String latitude = "0";
-String longitude = "0";
-String sog = "0";
-String cog = "0";
+String latitude = "0"; 
+String longitude = "0"; 
+String sog = "0"; 
+String cog = "0";  
 String STAT = "0";
 int batt;
 String RSI = "NAN";
 String SNR = "NAN";
 
+// -------------------------------------------------------------------------Definition Button Rompi
+#define buttonreset 14
+#define buttonreroute 25
 
-// -------------------------------------------------------------------------BATTERY SETUP
+// -------------------------------------------------------------------------Battery Setup
 AXP20X_Class axp;
-const float fullvol = 4100;
-const float minvol = 3700;
+const float fullvol = 4.2;
+const float minvol = 0;
 
-// -------------------------------------------------------------------------OLED SETUP
+// -------------------------------------------------------------------------OLED Setup
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
@@ -75,7 +62,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define LOGO_HEIGHT 16
 #define LOGO_WIDTH 16
 
-//--------------------------------------------------------------------------(TO GATEWAY SETUP)
+//---------------------------------------------------------------------------To Gateway Setup
 byte msgCount = 0;       // count of outgoing messages
 byte NextAddress = 0x13; // address of this device
 long lastSendTime = 0;   // last send time
@@ -85,14 +72,24 @@ int count;
 int destination = 0; // destination to send to
 bool state, state2;
 
-
-
-
-
-
 // ---------------------------------------PROCEDURE FOR MAIN CODE----------------------------------------------------
 
-// MAIN CODE GPS & SHOWING OLED
+// Main Code Start Device Procedure
+void startdevice()
+{
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("");
+  display.println(String() + "   " + "START");
+  display.println("");
+  display.setTextSize(1);
+  display.println(String() + "Press REROUTE button!");
+  display.display();
+}
+
+// Main Code GPS & Showing OLED
 void gpsdata()
 {
   while (neogps.available())
@@ -105,7 +102,7 @@ void gpsdata()
         longitude = String(gps.location.lng(), 6);
         sog = String(gps.speed.kmph(), 1);
         cog = ((gps.course.deg()));
-     
+        batt = (axp.getBattVoltage() / fullvol - minvol) * 100 / 1000;
 
         // OLED Showing
         display.clearDisplay();
@@ -122,7 +119,7 @@ void gpsdata()
         display.println(String() + "Batt : " + batt + "%");
         display.display();
 
-        // // Serial Showing
+        // Serial Showing
         // Serial.print("Position:");
         // Serial.print(gps.location.lat(), 6);
         // Serial.print(F(","));
@@ -137,21 +134,19 @@ void gpsdata()
       }
       else
       {
-        display.setCursor(0, 0);
         display.clearDisplay();
+        display.setTextSize(2);
         display.setTextColor(SSD1306_WHITE);
-        display.setTextSize(1);
-        display.println(String() + "MKRRMP021222" + "    RMP02");
-        display.println("---------------------");
+        display.setCursor(0, 0);
         display.println(String() + "Searching GPS...");
-        display.println("");
-        display.println(String() + "RSSI: " + LoRa.packetRssi() + "   Batt:" + batt + "%");
+        display.setTextSize(1);
+        display.println(String() + "LoRa Active!" + "         RSSI: " + LoRa.packetRssi() + " " + "   SNR:" + LoRa.packetSnr());
         display.println(String() + "Press RESET button ifit has still no GPS.");
         display.display();
       }
 }
 
-// MAIN CODE STARTING LORA
+// Main Code STARTING LORA
 void startLoRa()
 {
   SPI.begin(SCK, MISO, MOSI, SS);
@@ -160,21 +155,21 @@ void startLoRa()
   Serial.println("LoRa Initialization OK!");
 }
 
-// MAIN CODE SENDING MESSAGE LORA
+// Main Code SENDING MESSAGE LORA
 void sendMessage(String outgoing)
 {
   LoRa.beginPacket();            // start packet
   LoRa.write(destination);       // add destination address
   LoRa.write(localAddress);      // add sender address
   LoRa.write(msgCount);          // add message ID
-  LoRa.write(outgoing.length()); // add payload lengt
+  LoRa.write(outgoing.length()); // add payload length
   LoRa.print(outgoing);          // add payload
   LoRa.endPacket();              // finish packet and send it
   msgCount++;                    // increment message ID
 }
 
-// MAIN CODE SETUP MESSAGE FOR SENDING
-void onReceive(int packetSize)
+// Main Code SETUP MESSAGE LORA
+void onReceive01(int packetSize)
 {
   if (packetSize == 0)
     return; // if there's no packet, return
@@ -209,45 +204,55 @@ void onReceive(int packetSize)
     return; // skip rest of function
   }
 
-  Serial.println(incoming);
+   Serial.println(incoming);
   RSI = String(LoRa.packetRssi());
   SNR = String(LoRa.packetSnr());
 }
 
-
-
-
-//----------------------------------------------VOID SETUP---------------------------------------------------------------------
+//----------------------------------------------MAIN VOID---------------------------------------------------------------------
 void setup()
 {
-  //------------------------------------BEGIN SECTION
+  //------------------------------------Begin Section/Pengaktifan Library
 
   // Starting Serial
   Serial.begin(115200);
   // Starting GPS
   neogps.begin(9600, SERIAL_8N1, RX, TX);
   // Starting OLED
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.begin();
   // Starting Wire
   Wire.begin();
   // Starting LoRa
   startLoRa();
-  // Starting Battery
-  axp.begin(Wire, AXP192_SLAVE_ADDRESS);
 
-  //-----------------------------------PINMODE
+  //-----------------------------------pinMode
   pinMode(buttonreset, INPUT_PULLUP);
   pinMode(buttonreroute, INPUT_PULLUP);
+
+  //-----------------------------------Protect Monitoring if Failed
+  // Battery Monitoring
+  if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS))
+    ;
+  {
+    Serial.println("Battery Failed");
+  }
+
+  // OLED Monitoring
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
+  {
+    Serial.println(F("OLED FAILED"));
+    for (;;)
+      ;
+  }
+
+  // Main Code Start Device
+  // startdevice();
 }
 
-
-
-
-//-----------------------------------------------VOID LOOP--------------------------------------------------------------------
 void loop()
-{
+{ 
   //-----------------------------------------------------------------RESET Button
-  if (digitalRead(buttonreset) == 0 && digitalRead(buttonreroute) == 1)
+  if (digitalRead(buttonreroute) == 0 && digitalRead(buttonreset) == 1)
   {
 
     int i = 0;
@@ -264,92 +269,14 @@ void loop()
     }
     ESP.restart();
   }
-  batt = ((axp.getBattVoltage() - minvol) / (fullvol - minvol) * 100);
+  batt = (axp.getBattVoltage() / fullvol - minvol) * 100 / 1000;
   Serial.print("Batt :");
   Serial.print(batt);
   Serial.println("%");
   gpsdata();
 
   PayLoad = String() + ID + "," + latitude + "," + longitude + "," + sog + "," + batt + ",0,*";
-
+  // Serial Showing
 
   //-------------------------------------------------------------SENDING DATA for LORA
-  onReceive(LoRa.parsePacket());
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// #include <Arduino.h>
-// #include <Wire.h>
-// #include <SPI.h> // include libraries
-// #include <LoRa.h>
-// #include <axp20x.h>
-// #include <TinyGPS++.h>
-// #include <Adafruit_GFX.h>
-
-// #define SS 18   // LoRa radio chip select
-// #define RST 14  // LoRa radio reset
-// #define DIO0 26 // change for your board; must be a hardware interrupt pin
-// #define SCK 5
-// #define MISO 19
-// #define MOSI 27
-// #define RX 34
-// #define TX 12
-
-// HardwareSerial neogps(1);
-// TinyGPSPlus gps;
-// AXP20X_Class axp;
-// void setup()
-// {
-//   Serial.begin(115200);
-//   SPI.begin(SCK, MISO, MOSI, SS);
-//   LoRa.setPins(SS, RST, DIO0);
-//   Wire.begin();
-//   axp.begin(Wire, AXP192_SLAVE_ADDRESS);
-//   neogps.begin(9600, SERIAL_8N1, RX, TX);
-
-//   if (!LoRa.begin(915E6))
-//   { // initialize ratio at 915 MHz
-//     Serial.println("LoRa init failed. Check your connections.");
-//     while (true)
-//       ; // if failed, do nothing
-//   }
-// }
-
-// void loop()
-// {
-//   String message = "001";
-//   String location;
-//   LoRa.beginPacket();
-//   LoRa.println(String() + message);
-//   LoRa.endPacket();
-//   Serial.println(String() + "Pesan  : " + message);
-
-//   Serial.println("\n");
-// }
+  onReceive01(LoRa.parsePacket());
